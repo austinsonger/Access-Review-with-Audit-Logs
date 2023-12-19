@@ -2,9 +2,28 @@ import requests
 import logging
 import csv
 import time
+import configparser
+import requests
+import sys
+import json
 
-API_TOKEN = "your_api_token"  # Replace with your actual API token
-OKTA_DOMAIN = "your_okta_domain"  # Replace with your Okta domain
+# Read configuration file
+config = configparser.ConfigParser()
+
+if not config.read('config.ini'):
+    logging.error("config.ini file not found or could not be read.")
+    # Handle the error here, such as exiting the script or using default values.
+    sys.exit(1)
+
+# Check if required keys are present
+if 'Okta' not in config or 'API_TOKEN' not in config['Okta'] or 'OKTA_DOMAIN' not in config['Okta']:
+    logging.error("Required keys not found in config.ini.")
+    # Handle the error here, such as exiting the script or using default values.
+    sys.exit(1)
+
+
+API_TOKEN = config.get('Okta', 'API_TOKEN')
+OKTA_DOMAIN = config.get('Okta', 'OKTA_DOMAIN')
 OUTPUT_FILE = "okta_user_applications.csv"
 
 # Configure logging
@@ -25,26 +44,40 @@ def handle_api_call(url, headers):
                 retries += 1
                 continue
             response.raise_for_status()
-            return response.json()
+
+            # Validate response data
+            data = response.json()
+            if not isinstance(data, list):
+                logging.error(f"API response is not a list: {data}")
+                return None
+            for item in data:
+                if 'id' not in item or 'profile' not in item or 'login' not in item['profile']:
+                    logging.error(f"API response item is missing required fields: {item}")
+                    return None
+            return data
+
         except requests.exceptions.RequestException as e:
             logging.error(f"API call failed: {e}")
-            return None
-    logging.error("Max retries exceeded. API call failed.")
+            retries += 1
+
+    logging.error("API call failed after retries. Halting the script or handle it more gracefully.")
     return None
+
+
 def get_active_users():
     users = []
     url = f"https://{OKTA_DOMAIN}/api/v1/users?filter=status eq \"ACTIVE\""
     headers = {'Authorization': f'SSWS {API_TOKEN}'}
 
     while url:
-        data = handle_api_call(url, headers)
+        data = handle_api_call(url, headers)  # Define data variable in the correct scope
         if data is None:
             break
         users.extend(data)
 
         # Okta uses link headers for pagination
-        if 'next' in response.links:
-            url = response.links['next']['url']
+        if 'next' in data.links:
+            url = data.links['next']['url']
         else:
             url = None
 
@@ -56,16 +89,16 @@ def get_user_applications(user_id):
     return handle_api_call(url, headers)
 
 def list_okta_applications(api_token, okta_domain):
-    url = f"https://{okta_domain}/api/v1/apps"
-    headers = {'Authorization': f'SSWS {api_token}'}
+    url = f"https://{OKTA_DOMAIN}/api/v1/apps"
+    headers = {'Authorization': f'SSWS {API_TOKEN}'}
     applications = handle_api_call(url, headers)
     if applications is not None:
         for app in applications:
             logging.info(f"Application: {app['label']}")
 
 def review_user_accounts(api_token, okta_domain):
-    url = f"https://{okta_domain}/api/v1/users"
-    headers = {'Authorization': f'SSWS {api_token}'}
+    url = f"https://{OKTA_DOMAIN}/api/v1/users"
+    headers = {'Authorization': f'SSWS {API_TOKEN}'}
     users = handle_api_call(url, headers)
     if users is not None:
         for user in users:
@@ -73,13 +106,40 @@ def review_user_accounts(api_token, okta_domain):
             logging.info(f"Status: {user['status']}")
             logging.info("------")
 
-def analyze_group_memberships(api_token, okta_domain, user_id):
-    url = f"https://{okta_domain}/api/v1/users/{user_id}/groups"
-    headers = {'Authorization': f'SSWS {api_token}'}
-    groups = handle_api_call(url, headers)
+def load_roles_and_functions():
+    with open('roles_and_functions.json', 'r') as file:
+        data = json.load(file)
+    return data['expected_roles'], data['expected_functions']
 
-    expected_roles = ['Role1', 'Role2', 'Role3']  # Replace with your expected set of roles
-    expected_functions = ['Function1', 'Function2', 'Function3']  # Replace with your expected set of functions
+def analyze_group_memberships(api_token, okta_domain, user_id):
+    """
+    Analyzes the group memberships of a user in Okta.
+
+    Parameters:
+    - api_token (str): The Okta API token.
+    - okta_domain (str): The Okta domain.
+    - user_id (str): The ID of the user.
+
+    Returns:
+    None
+    """
+    url = f"https://{OKTA_DOMAIN}/api/v1/users/{user_id}/groups"
+    headers = {'Authorization': f'SSWS {API_TOKEN}'}
+    groups = []
+
+    while url:
+        data = handle_api_call(url, headers)
+        if data is None:
+            break
+        groups.extend(data)
+
+        # Okta uses link headers for pagination
+        if 'next' in response.links:
+            url = response.links['next']['url']
+        else:
+            url = None
+
+    expected_roles, expected_functions = load_roles_and_functions()
 
     if groups is not None:
         for group in groups:
@@ -107,8 +167,8 @@ def analyze_group_memberships(api_token, okta_domain, user_id):
             logging.info("------")
 
 def validate_role_assignments(api_token, okta_domain):
-    url = f"https://{okta_domain}/api/v1/roles"
-    headers = {'Authorization': f'SSWS {api_token}'}
+    url = f"https://{OKTA_DOMAIN}/api/v1/roles"
+    headers = {'Authorization': f'SSWS {API_TOKEN}'}
     roles = handle_api_call(url, headers)
 
     expected_roles = ['Role1', 'Role2', 'Role3']  # Replace with your expected set of roles
@@ -129,7 +189,30 @@ def validate_role_assignments(api_token, okta_domain):
             logging.info("------")
 
 
+def get_role_permissions(api_token, okta_domain, role_id):
+    url = f"https://{okta_domain}/api/v1/roles/{role_id}/permissions"
+    headers = {'Authorization': f'SSWS {api_token}'}
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        permissions = response.json()
+        return permissions
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to retrieve role permissions for role ID {role_id}: {e}")
+        return None
+
+
 def main():
+    """
+    Main function to execute the Okta API pull script.
+
+    This function retrieves active users, lists Okta applications,
+    reviews user accounts, analyzes group memberships, and validates
+    role assignments. It then exports the data to a CSV file.
+
+    :return: None
+    """
     api_token = "your_api_token"  # Replace with your actual API token
     okta_domain = "your_okta_domain"  # Replace with your Okta domain
     output_file = "okta_user_applications.csv"
@@ -160,6 +243,18 @@ def main():
             writer.writerows(data_to_export)
 
         logging.info(f"Data exported to {output_file}")
+
+    except FileNotFoundError:
+        logging.error("config.ini file not found.")
+        # Handle the error here, such as exiting the script or using default values.
+
+    except KeyError:
+        logging.error("Required keys not found in config.ini.")
+        # Handle the error here, such as exiting the script or using default values.
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"An error occurred during the API call: {str(e)}")
+        # Handle the error here, such as retrying the API call or logging the error.
 
     except Exception as e:
         logging.error(f"An unexpected error occurred: {str(e)}")

@@ -1,0 +1,12 @@
+{
+    "expected_roles": [
+        "Admin",
+        "User",
+        "Manager"
+    ],
+    "expected_functions": [
+        "Human Resources",
+        "Finance",
+        "IT Support"
+    ]
+}
