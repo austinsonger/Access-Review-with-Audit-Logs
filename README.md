@@ -4,5 +4,5 @@
 ## TO DO
 - [X] Atlassian
 - [ ] Okta
-
-
+- [ ] Amazon Web Services
+- [ ] Salesforce
