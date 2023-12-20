@@ -39,6 +39,24 @@ OKTA_DOMAIN = Your_Okta_Domain
 - `get_role_permissions`: Retrieves permissions for a specified role in Okta.
 - `main`: Main function that orchestrates the execution of the script.
 
+
+## Structure of roles_and_functions.json
+
+- `expected_roles` is an array listing the roles that the script will check for in Okta groups or user assignments. These roles are likely predetermined by your organization's policies or the specific requirements of the script.
+- `expected_functions` lists the functions or permissions associated with these roles. These could be actions that users with the specified roles are expected to perform or have permissions for in the Okta environment.
+
+The primary purpose of roles_and_functions.json in the context of the script is to provide a reference for validating user group memberships and role assignments in Okta.
+
+- `Analyze Group Memberships`: It uses the roles and functions defined in this file to check if users are correctly assigned to groups in Okta. For example, it could verify that a user in an "Admin" group has the expected "Admin" role.
+- `Validate Role Assignments`: It uses this file to ensure that users have appropriate roles and that these roles align with their expected functions or permissions.
+- `Reporting and Logging`: It can log information about whether users' roles and functions in Okta match those listed in the roles_and_functions.json file, highlighting any discrepancies.
+- `Customization`: This file allows for easy customization to fit different organizational structures or role definitions without needing to alter the  source code.
+
+Since `roles_and_functions.json` is a separate file, it can be updated independently of the script. This allows for flexibility in managing role and function definitions as organizational needs change, without the need to modify the script itself.
+
+In summary, `roles_and_functions.json` serves as a crucial data source for the Okta API Pull Script, providing the necessary context for validating user roles and functions in an Okta environment.
+
+
 ## Logging
 
 Logs are written to `okta_api.log` in the same directory as the script. The log includes details about script operations, API interactions, and any errors or warnings encountered.
