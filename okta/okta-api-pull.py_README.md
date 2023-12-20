@@ -27,6 +27,18 @@ OKTA_DOMAIN = Your_Okta_Domain
 3. Place `config.ini` in the same directory as the script with appropriate Okta credentials.
 4. Run the script: `python okta_api.py`
 
+## Function Descriptions
+
+- `handle_api_call`: Manages API calls to Okta, handles rate limiting and errors.
+- `get_active_users`: Retrieves a list of active users from Okta.
+- `get_user_applications`: Fetches applications assigned to a specific user.
+- `list_okta_applications`: Lists all applications in Okta.
+- `review_user_accounts`: Reviews and logs user account details.
+- `analyze_group_memberships`: Analyzes and validates group memberships of users.
+- `validate_role_assignments`: Validates role assignments against expected roles.
+- `get_role_permissions`: Retrieves permissions for a specified role in Okta.
+- `main`: Main function that orchestrates the execution of the script.
+
 ## Logging
 
 Logs are written to `okta_api.log` in the same directory as the script. The log includes details about script operations, API interactions, and any errors or warnings encountered.
